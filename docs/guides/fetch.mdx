@@ -1,0 +1,88 @@
+---
+title: fetch を使う
+description: 宣言した TARGET にだけ HTTP リクエストを送る
+---
+
+# fetch を使う
+
+`tsubu-cloud:fetcher/fetcher` は、`tsubu.json` の `fetch` に宣言した
+`TARGET` にだけリクエストを送れる capability です。任意の URL への `fetch`
+はできません。
+
+このガイドは `examples/mbt-http` を題材にしています。
+
+## 1. `tsubu.json` で通信先を宣言する
+
+```json
+{
+  "$schema": "https://tsubu-cloud.net/tsubu.schema.json",
+  "fetch": [
+    { "ALIAS": "fetch", "TARGET": "https://example.com" }
+  ],
+  "postgres": [],
+  "variables": []
+}
+```
+
+`ALIAS` が WIT 側の import 名、`TARGET` が実際に接続できるベース URL です。
+複数の通信先が必要な場合は配列に要素を追加し、それぞれ別の `ALIAS` を
+つけます。
+
+## 2. WIT インターフェース
+
+```wit
+package tsubu-cloud:fetcher;
+
+interface types {
+    record request {
+        method: string,
+        headers: list<tuple<string, string>>,
+        body: string,
+    }
+
+    record response {
+        status: u16,
+        headers: list<tuple<string, string>>,
+        body: string,
+    }
+}
+
+interface fetcher {
+    use types.{request, response};
+    fetch: func(request: request) -> response;
+}
+```
+
+## 3. `wit/guest.wit` での import
+
+```wit
+world guest {
+    import tsubu-cloud:logger/logger;
+    import tsubu-cloud:fetcher/fetcher;
+
+    export handler: func(request: request) -> response;
+}
+```
+
+## 4. 呼び出す
+
+MoonBit(`examples/mbt-http`)では、`handler` の中で `fetcher` を呼び出し、
+結果を `logger` で出力しています。
+
+```moonbit
+let res = @fetcher.fetch(@fetcher_types.Request::{
+  method: "GET",
+  headers: [],
+  body: "",
+})
+@logger.log(res.body)
+```
+
+宣言した `TARGET`(`https://example.com`)以外への接続はコンパイル時にも
+実行時にも手段がありません。別のホストに接続したい場合は `tsubu.json` に
+別の `ALIAS` を追加し、対応する `wit/guest.wit` の import(あるいは呼び出し
+コード側で使うエイリアス)を揃える必要があります。
+
+実際に動かす手順は [Getting Started](/getting-started) と同様です。
+`examples/mbt-http` をビルド・コンポーネント化して `tsubu_cloud_local` で
+実行すると、`example.com` から取得した HTML が標準出力にログ出力されます。

@@ -1,0 +1,86 @@
+---
+title: tsubu.json
+description: tsubu.json の全フィールドと、対応する host capability の一覧
+---
+
+# tsubu.json
+
+`tsubu.json` は、アプリが呼び出せる通信先(host capability)をホスト側で
+宣言する設定ファイルです。アプリを実行する際、`tsubu.json` のあるディレクトリを
+カレントディレクトリにして `tsubu_cloud_local` を起動します。
+
+```json
+{
+  "$schema": "https://tsubu-cloud.net/tsubu.schema.json",
+  "fetch": [],
+  "postgres": [],
+  "variables": []
+}
+```
+
+## トップレベルフィールド
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `$schema` | string | エディタ補完用の JSON Schema URL。省略可 |
+| `fetch` | array | HTTP fetch の通信先エイリアス一覧 |
+| `postgres` | array | Postgres 接続のエイリアス一覧 |
+| `variables` | array | (予約) |
+
+## `fetch`
+
+各要素は次のフィールドを持ちます。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `ALIAS` | string | `wit/guest.wit` の import に対応する識別子 |
+| `TARGET` | string | 接続を許可するベース URL |
+
+```json
+"fetch": [
+  { "ALIAS": "fetch", "TARGET": "https://example.com" }
+]
+```
+
+対応する WIT インターフェースは `tsubu-cloud:fetcher/fetcher`。詳しくは
+[Guides: fetch を使う](/guides/fetch)を参照してください。
+
+## `postgres`
+
+各要素は次のフィールドを持ちます。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `ALIAS` | string | `wit/guest.wit` の import に対応する識別子 |
+| `DATABASE_URL` | string | 接続を許可する Postgres 接続文字列 |
+
+```json
+"postgres": [
+  { "ALIAS": "query", "DATABASE_URL": "postgres://postgres:postgres@localhost:5432/postgres" }
+]
+```
+
+対応する WIT インターフェースは `tsubu-cloud:postgres/postgres`。詳しくは
+[Guides: postgres を使う](/guides/postgres)を参照してください。
+
+## `variables`
+
+現時点のサンプルでは常に空配列です。用途は今後のドキュメント更新で追記します。
+
+## capability を追加しない場合
+
+`logger`(`tsubu-cloud:logger/logger`)には接続先の概念がないため、
+`tsubu.json` に対応する設定項目はありません。`wit/guest.wit` で import
+するだけで使えます。詳しくは [Guides: logger を使う](/guides/logger)を
+参照してください。
+
+## 反映のさせ方
+
+`tsubu.json` を編集したら、依存 WIT パッケージ(`wit/deps/`)を再生成します。
+
+```sh
+tsubu_cloud_local wit tsubu.json
+```
+
+続けて `wit-bindgen` でゲスト側のバインディングを再生成してください。
+手順は [Core Concepts](/core-concepts) を参照してください。

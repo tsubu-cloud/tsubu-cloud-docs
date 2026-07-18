@@ -1,0 +1,127 @@
+---
+title: Getting Started
+description: tsubu-cloud で最初の WASM コンポーネントをビルドして動かす
+sidebar:
+  order: 1
+---
+
+# Getting Started
+
+このページでは、MoonBit で書かれた最小の tsubu-cloud ゲストコンポーネントをビルドし、
+tsubu-cloud-zig ホスト上で実際に動かすまでの手順を説明します。完成すると、
+`curl` で `Hello World` を返すサーバーが手元で立ち上がります。
+
+題材には、リポジトリに含まれる `examples/mbt-hello-world` を使います。このサンプルは
+外部通信(`fetch`/`postgres`)を一切使わず、`handler` から文字列を返すだけの最小構成です。
+
+## tsubu-cloud とは
+
+tsubu-cloud は、依存パッケージが勝手に外部と通信できない WASM Component ホスティング
+です。アプリが呼び出せる通信先は `tsubu.json` に宣言したものだけで、宣言していない
+通信は実行時フィルタで弾かれるのではなく、コンポーネントの import としてそもそも
+存在しません。宣言と実装がズレて事故る、という典型的な失敗パターンが構造的に
+起こり得ないのが特徴です。詳しい設計思想は [Design Rationale](/design-rationale) を
+参照してください。
+
+## 必要なもの
+
+- [Nix](https://nixos.org/)(tsubu-cloud-zig 本体のビルドに使用)
+- [MoonBit](https://www.moonbitlang.com/)(`moon` コマンド)
+- [`wit-bindgen`](https://github.com/bytecodealliance/wit-bindgen)
+- [`wasm-tools`](https://github.com/bytecodealliance/wasm-tools)
+
+## 1. tsubu-cloud-zig 本体をビルドする
+
+リポジトリルートで、ホスト本体を Nix でビルドします。
+
+```sh
+nix build
+```
+
+`result/bin/tsubu_cloud_local` にホストのバイナリが出力されます。以降の手順で
+このバイナリを使います。
+
+## 2. サンプルのゲストコンポーネントを見る
+
+`examples/mbt-hello-world` の構成は次の通りです。
+
+- `wit/guest.wit` — ゲストが export する WIT インターフェース定義
+- `wit/deps/` — ホスト側が提供する WIT パッケージ(生成物)
+- `gen/` — `wit-bindgen` が生成したエントリポイント。`handler` の実装本体を置く
+- `tsubu.json` — ホスト側の設定。通信先のエイリアスをここで宣言する
+
+`wit/guest.wit` を見ると、このアプリが何を import しているかが一目でわかります。
+
+```wit
+package guest:handler;
+
+world guest {
+    use tsubu-cloud:handler/types.{request, response};
+
+    import tsubu-cloud:logger/logger;
+
+    export handler: func(request: request) -> response;
+}
+```
+
+`tsubu-cloud:logger/logger` だけを import しており、`fetch` や `postgres` は
+import していません。そのため `tsubu.json` もそれに対応して空です。
+
+```json
+{
+  "$schema": "https://tsubu-cloud.net/tsubu.schema.json",
+  "fetch": [],
+  "postgres": [],
+  "variables": []
+}
+```
+
+実装本体はこれだけです。
+
+```moonbit
+pub fn handler(_request : @types.Request) -> @types.Response {
+  @types.Response::{ status: 200, headers: [], body: "Hello World" }
+}
+```
+
+## 3. ビルドする
+
+```sh
+cd examples/mbt-hello-world
+moon build --target wasm
+```
+
+`_build/wasm/debug/build/gen/gen.wasm` にコア wasm モジュールが出力されます。
+
+## 4. コンポーネント化する
+
+MoonBit の文字列は UTF-16 でエンコードされるため、component 化の際は
+`--encoding utf16` を指定します(省略するとホスト側で文字列が壊れて渡ります)。
+
+```sh
+wasm-tools component embed wit _build/wasm/debug/build/gen/gen.wasm \
+  -o /tmp/embedded.wasm --world guest --encoding utf16
+wasm-tools component new /tmp/embedded.wasm -o /tmp/component.wasm
+```
+
+## 5. 実行する
+
+`tsubu.json` があるディレクトリをカレントにして、wasm コンポーネントと設定ファイルの
+パスを指定してホストを起動します。
+
+```sh
+../../result/bin/tsubu_cloud_local run /tmp/component.wasm tsubu.json
+```
+
+別のターミナルから確認します。
+
+```sh
+curl http://localhost:8080/
+# => Hello World
+```
+
+## 次に読むもの
+
+- 通信先の宣言や WIT の import について詳しく知りたい場合は [Core Concepts](/core-concepts)
+- `fetch` / `postgres` を使う具体的な手順は [Guides](/guides/fetch) と [Guides](/guides/postgres)
+- `tsubu.json` の全フィールドは [Reference](/reference/tsubu-json)

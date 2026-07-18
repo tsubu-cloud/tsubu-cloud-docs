@@ -1,10 +1,24 @@
 ---
-title: Introduction
-description: Welcome to your new Blume docs.
+title: tsubu-cloud
+description: 依存パッケージが勝手に外部と通信できない、WASM Component ホスティング
+sidebar:
+  order: 0
 ---
 
-# Introduction
+# tsubu-cloud
 
-Welcome to **Blume** — markdown-first docs powered by Astro and Vite.
+**依存パッケージが勝手に外部と通信できない、WASM Component ホスティング**
 
-Edit `docs/index.mdx` to get started, then run `blume dev`.
+tsubu-cloud では、`tsubu.json` に宣言した通信先だけが、アプリのビルド成果物
+(WASM Component)そのものの構造として呼び出し可能になります。宣言していない
+外部通信は実行時フィルタで弾かれるのではなく、コンポーネントの import として
+そもそも存在しません。
+
+- どこから始めればいいかは [Getting Started](/getting-started) へ
+- 仕組み全体を理解したい場合は [Core Concepts](/core-concepts) へ
+- なぜこの設計なのかは [Design Rationale](/design-rationale) へ
+
+:::note
+このサイトはドキュメント整備の初期段階です。記載内容と実装に差異がある場合は
+実装(このリポジトリのソースコード)を正としてください。
+:::

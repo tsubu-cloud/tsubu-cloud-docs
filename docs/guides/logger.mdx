@@ -1,0 +1,49 @@
+---
+title: logger を使う
+description: tsubu-cloud-zig が提供するログ出力 capability
+---
+
+# logger を使う
+
+`tsubu-cloud:logger/logger` は、tsubu-cloud が提供する capability の中で
+もっともシンプルなものです。宣言なしに文字列をログ出力できます。
+
+## WIT インターフェース
+
+```wit
+package tsubu-cloud:logger;
+
+interface logger {
+    log: func(message: string);
+}
+```
+
+`log` 関数一つだけを持ちます。接続先やエイリアスの概念がないため、
+`tsubu.json` 側にも対応する設定項目はありません。
+
+## `wit/guest.wit` での import
+
+```wit
+world guest {
+    import tsubu-cloud:logger/logger;
+    // ...
+}
+```
+
+## 使用例(MoonBit)
+
+```moonbit
+@logger.log("hello from guest")
+```
+
+## 使用例(Rust)
+
+```rust
+use crate::guest::tsubu_cloud::logger::logger;
+
+logger::log("hello from guest");
+```
+
+出力先はホスト(`tsubu_cloud_local`)の標準出力です。`fetch` や `postgres` を
+使うサンプル(`examples/mbt-http`, `examples/mbt-postgres`)でも、実際の
+呼び出し結果の確認にこの `logger` を使っています。

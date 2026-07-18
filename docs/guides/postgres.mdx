@@ -1,0 +1,76 @@
+---
+title: postgres を使う
+description: 宣言した DATABASE_URL にだけパラメータ化クエリを発行する
+---
+
+# postgres を使う
+
+`tsubu-cloud:postgres/postgres` は、`tsubu.json` の `postgres` に宣言した
+`DATABASE_URL` にだけ、パラメータ化されたクエリを発行できる capability です。
+このガイドは `examples/mbt-postgres`(MoonBit)と `examples/rust-postgres`
+(Rust)を題材にしています。
+
+## 1. `tsubu.json` で接続先を宣言する
+
+```json
+{
+  "$schema": "https://tsubu-cloud.net/tsubu.schema.json",
+  "fetch": [],
+  "postgres": [
+    { "ALIAS": "query", "DATABASE_URL": "postgres://postgres:postgres@localhost:5432/postgres" }
+  ],
+  "variables": []
+}
+```
+
+`ALIAS` が WIT 側から見える名前、`DATABASE_URL` が実際の接続文字列です。
+
+## 2. WIT インターフェース(抜粋)
+
+```wit
+package tsubu-cloud:postgres;
+
+interface postgres {
+  use types.{parameter-value, row-set, error};
+  query: func(statement: string, params: list<parameter-value>) -> result<row-set, error>;
+}
+```
+
+`types` インターフェースには `parameter-value` / `db-value` / `row-set` /
+`error` などが型付きで定義されています。`db-value` は `boolean` から
+`jsonb`、`range-*`、`array-*`、`interval` まで幅広い Postgres の型を
+カバーしています(定義全文は
+`tsubu-cloud/examples/mbt-postgres/wit/deps/postgres/package.wit` を参照)。
+
+## 3. `wit/guest.wit` での import
+
+```wit
+world guest {
+    import tsubu-cloud:logger/logger;
+    import tsubu-cloud:postgres/postgres;
+
+    export handler: func(request: request) -> response;
+}
+```
+
+## 4. 呼び出す(Rust の例)
+
+```rust
+use crate::guest::tsubu_cloud::postgres::postgres;
+use crate::guest::tsubu_cloud::postgres::postgres::ParameterValue;
+
+fn get_user(id: &str) -> Result<postgres::RowSet, postgres::Error> {
+    postgres::query(
+        "select id, email, created_at from users where id = $1",
+        &[ParameterValue::Str(id.to_string())],
+    )
+}
+```
+
+クエリはプレースホルダ(`$1` など)と `ParameterValue` の配列で組み立てる
+パラメータ化クエリのみが可能です。文字列結合による動的な SQL 構築や、
+`DATABASE_URL` に宣言していない別の DB への接続はできません。
+
+`examples/mbt-postgres` を実行する場合、`tsubu_cloud_local` ではなく
+リポジトリルートで `cargo run --release -- /tmp/component.wasm` を使う
+点が他のサンプルと異なります。クエリ結果の行数が標準出力にログ出力されます。

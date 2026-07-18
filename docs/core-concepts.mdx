@@ -1,0 +1,125 @@
+---
+title: Core Concepts
+description: tsubu.json と WIT による通信先の宣言・型付き import の仕組み
+sidebar:
+  order: 2
+---
+
+# Core Concepts
+
+tsubu-cloud のアプリは、次の4つの要素からできています。
+
+1. `tsubu.json` — ホストがどの通信先をどのエイリアスで提供するかの宣言
+2. `wit/guest.wit` — アプリがそのうちどれを import するかの宣言
+3. `wit-bindgen` が生成するグルーコード — 型安全な呼び出し関数
+4. アプリ本体のコード — 生成された関数を呼ぶだけ
+
+この4つが噛み合うことで、「宣言していない通信は書けない」が言語やランタイムに
+頼らず構造的に成立します。順に見ていきます。
+
+## 1. `tsubu.json` — 通信先をエイリアスとして宣言する
+
+```json
+{
+  "$schema": "https://tsubu-cloud.net/tsubu.schema.json",
+  "postgres": [
+    { "ALIAS": "query", "DATABASE_URL": "postgres://postgres:postgres@localhost:5432/postgres" }
+  ],
+  "fetch": [
+    { "ALIAS": "fetch", "TARGET": "https://example.com" }
+  ],
+  "variables": []
+}
+```
+
+各 capability(`fetch` / `postgres` など)は配列で、要素ごとに `ALIAS` と接続先
+(`TARGET` や `DATABASE_URL`)を持ちます。ここに書かれていない通信先は、
+以降のどのステップでも呼び出す手段がありません。全フィールドの詳細は
+[Reference: tsubu.json](/reference/tsubu-json) を参照してください。
+
+## 2. `wit/guest.wit` — アプリ側で使う capability を import として明示する
+
+```wit
+package guest:handler;
+
+world guest {
+    use tsubu-cloud:handler/types.{request, response};
+
+    import tsubu-cloud:logger/logger;
+    import tsubu-cloud:postgres/postgres;
+
+    export handler: func(request: request) -> response;
+}
+```
+
+`tsubu-cloud:postgres/postgres` の実体(`wit/deps/postgres/package.wit`)は
+tsubu-cloud 側が提供するインターフェース定義で、`query` 関数やエラー型・値型が
+型付きで定義されています。アプリはこの中から自分が使う interface だけを
+`import` します。`fetch` を使わないアプリなら `tsubu-cloud:fetcher/fetcher` を
+import しなければよく、それだけで `fetch` は使えなくなります。
+
+`wit/deps/` 配下の WIT パッケージは、以下のコマンドで `tsubu.json` から
+生成されます。
+
+```sh
+tsubu_cloud_local wit tsubu.json
+```
+
+## 3. `wit-bindgen` でグルーコードを生成する
+
+```sh
+wit-bindgen rust wit/guest.wit --out-dir src
+```
+
+(MoonBit の場合は `wit-bindgen moonbit`。対応言語は下の
+[言語非依存](#言語非依存) を参照)
+
+生成されたコードには、`postgres::query()` のような型安全な関数が並びます。
+ここに `fetch` や別の DB への接続関数は存在しません — WIT で import して
+いないものは、そもそも生成されないためです。
+
+## 4. アプリのコードは生成された関数を呼ぶだけ
+
+```rust
+use crate::guest::tsubu_cloud::postgres::postgres;
+use crate::guest::tsubu_cloud::postgres::postgres::ParameterValue;
+
+fn get_user(id: &str) -> Result<RowSet, postgres::Error> {
+    postgres::query(
+        "select id, email, created_at from users where id = $1",
+        &[ParameterValue::Str(id.to_string())],
+    )
+}
+```
+
+`reqwest` を直接使う、任意の URL に `fetch` するといったコードは、
+コンパイル自体が通りません。ホストが linker で紐付けている import は
+`tsubu.json` に書かれたものだけなので、コンポーネント全体として
+「宣言されていない通信」は型レベル・リンクレベルの両方で存在し得ません。
+
+## なぜこれが効くのか
+
+- IP アドレスではなく通信先(エイリアス)単位の制御なので、正規の通信先が
+  動的 IP でも問題になりません
+- インフラ側の別設定(VPC / NAT / Firewall の整備)が不要です
+- 実行時フィルタへの信頼が不要です — 設定とコードのズレが構造的に起きず、
+  fail-closed になります
+- 何が呼べるかは `tsubu.json` と `wit/guest.wit` を見るだけで完全にわかります
+
+この設計が既存の egress 制限(IP allowlist やホスト名 allowlist)と何が違うかは
+[Design Rationale](/design-rationale) で詳しく説明しています。
+
+## 言語非依存
+
+この仕組みは特定の言語に依存しません。上記の手順は「WIT で書かれた
+インターフェース定義から、host capability を型付きでバインディング生成する」
+という手順そのものであり、`wit-bindgen` が対応している言語(Rust, C/C++,
+Go (TinyGo), Python, Java, JavaScript など)なら基本的にどれでも同じ理屈で
+動きます。リポジトリには MoonBit のサンプル(`examples/mbt-hello-world`,
+`examples/mbt-http`, `examples/mbt-postgres`)と Rust のサンプル
+(`examples/rust-postgres`)が実際に含まれています。
+
+## 次に読むもの
+
+- 各 host capability の使い方は [Guides](/guides/fetch)
+- `tsubu.json` の全フィールドは [Reference: tsubu.json](/reference/tsubu-json)
