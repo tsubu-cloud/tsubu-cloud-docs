@@ -1,0 +1,36 @@
+name: Docker push (tsubu-cloud-docs)
+
+on:
+  push:
+    tags:
+      - "tsubu-cloud-docs-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ vars.SAKURA_CR_REGISTRY }}
+          username: ${{ secrets.SAKURA_CR_USERNAME }}
+          password: ${{ secrets.SAKURA_CR_PASSWORD }}
+
+      - name: Extract version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#tsubu-cloud-docs-}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ vars.SAKURA_CR_REGISTRY }}/tsubu-cloud-docs:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
