@@ -2,7 +2,7 @@
 title: Getting Started
 description: tsubu-cloud で最初の WASM コンポーネントをビルドして動かす
 sidebar:
-  order: 1
+  order: 2
 ---
 
 # Getting Started
@@ -20,8 +20,8 @@ tsubu-cloud は、依存パッケージが勝手に外部と通信できない W
 です。アプリが呼び出せる通信先は `tsubu.json` に宣言したものだけで、宣言していない
 通信は実行時フィルタで弾かれるのではなく、コンポーネントの import としてそもそも
 存在しません。宣言と実装がズレて事故る、という典型的な失敗パターンが構造的に
-起こり得ないのが特徴です。詳しい設計思想は [Design Rationale](/design-rationale) を
-参照してください。
+起こり得ないのが特徴です。なぜこれを使うのか、CaaS との対比は
+[Why tsubu-cloud](/why-tsubu-cloud) を参照してください。
 
 ## 必要なもの
 

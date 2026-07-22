@@ -2,7 +2,7 @@
 title: Core Concepts
 description: tsubu.json と WIT による通信先の宣言・型付き import の仕組み
 sidebar:
-  order: 2
+  order: 3
 ---
 
 # Core Concepts
@@ -107,7 +107,7 @@ fn get_user(id: &str) -> Result<RowSet, postgres::Error> {
 - 何が呼べるかは `tsubu.json` と `wit/guest.wit` を見るだけで完全にわかります
 
 この設計が既存の egress 制限(IP allowlist やホスト名 allowlist)と何が違うかは
-[Design Rationale](/design-rationale) で詳しく説明しています。
+[Why tsubu-cloud](/why-tsubu-cloud) で詳しく説明しています。
 
 ## 言語非依存
 
